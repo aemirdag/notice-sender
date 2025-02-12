@@ -1,0 +1,41 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "C:\\Users\\aaemi\\OneDrive\\Desktop\\notice-sender\\transceiver\\contracts\\Transceiver.sol": {
+      "lastModificationDate": 1738780667537,
+      "contentHash": "205f7e74f70df6c437e011c1df1fac69",
+      "sourceName": "contracts/Transceiver.sol",
+      "solcConfig": {
+        "version": "0.8.27",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "Transceiver"
+      ]
+    }
+  }
+}
