@@ -115,6 +115,22 @@ const address = `${process.env.SEPOLIA_WALLET_ADDRESS}`;
 const apiUrl = process.env.API_URL;
 // An authentication key to include in the POST request (if needed)
 const authKey = process.env.API_AUTH_KEY;
+// Global variable to track nonce
+let localNonce = null;
+
+/**
+ * Syncs the localNonce with the chain's pending transaction count.
+ * Called periodically (e.g., on new blocks or after a reorg).
+ */
+async function syncNonceWithChain() {
+  try {
+    const chainNonce = await web3.eth.getTransactionCount(address, 'pending');
+    localNonce = chainNonce;
+    console.log(`Synced local nonce with chain: ${localNonce}`);
+  } catch (error) {
+    console.error('Error syncing nonce with chain:', error);
+  }
+}
 
 // Register event listener for NoticeData events (sent from the contract)
 function registerConsumerEventListeners() {
@@ -167,18 +183,24 @@ async function handleNotice(noticeData, noticeID, gsmNumber) {
 
 // Function to call the contract’s updateNoticeStatus method.
 async function updateNoticeStatus(noticeID, jobID, status) {
+  // Ensure localNonce is synced before using it.
+  await syncNonceWithChain();
+
   const tx = contract.methods.updateNoticeStatus(noticeID, jobID, status);
   const gas = await tx.estimateGas({ from: address });
   const gasPriceRaw = await web3.eth.getGasPrice();
   const gasPrice = Math.floor(Number(gasPriceRaw) * 1.2); // because of the "replacement transaction underpriced" error
-  const nonce = await web3.eth.getTransactionCount(address, 'pending');
+  // Use our tracked localNonce.
+  const nonceToUse = localNonce;
+  // Increment our localNonce for the next transaction.
+  localNonce++;
 
   const txData = {
     from: address,
     to: contractAddress,
     data: tx.encodeABI(),
     gas,
-    nonce,
+    nonce: nonceToUse,
     gasPrice,
   };
 
