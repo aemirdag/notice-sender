@@ -175,7 +175,9 @@ async function handleNotice(noticeData, noticeID, gsmNumber) {
     const status = response.data.code === "00" ? 1 : 0;
 
     // Call the smart contract to update notice status with the API response
-    await updateNoticeStatus(noticeID, jobid, status);
+    const usedGas = await updateNoticeStatus(noticeID, jobid, status);
+
+    console.log("Gas used in transaction: ", usedGas);
   } catch (error) {
     console.error("Consumer encountered an error while handling notice:", error);
   }
@@ -208,6 +210,8 @@ async function updateNoticeStatus(noticeID, jobID, status) {
   const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
 
   //console.log('Consumer updateNoticeStatus transaction receipt:', receipt);
+
+  return receipt.gasUsed;
 }
 
 registerConsumerEventListeners();
