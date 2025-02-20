@@ -90,10 +90,30 @@ printEthCosts(ethCosts, tokenToUsd, "ETH", "OP Mainnet");
 
 // Fantom Opera
 // Given gas price in gwei
-gweiPrice = 1.5452; // 19.02.2025, https://ftmscan.com/
+gweiPrice = 1.5452; // 19.02.2025, normal, https://ftmscan.com/
 // Given usd for the related token
 tokenToUsd = 0.718924; // 19.02.2025
 // Calculate the ETH cost for each gas limit
 ethCosts = gasList.map(gas => gasToEth(gas, gweiPrice));
 // Call the printing function with the list of ETH costs
 printEthCosts(ethCosts, tokenToUsd, "FTM", "Fantom Opera");
+
+// Cronos EVM
+// Given gas price in gwei
+gweiPrice = 4545; // 19.02.2025, normal, https://cronos.org/gastracker
+// Given usd for the related token
+tokenToUsd = 0.08396; // 19.02.2025
+// Calculate the ETH cost for each gas limit
+ethCosts = gasList.map(gas => gasToEth(gas, gweiPrice));
+// Call the printing function with the list of ETH costs
+printEthCosts(ethCosts, tokenToUsd, "CRO", "Cronos EVM");
+
+// Gnosis
+// Given gas price in gwei
+gweiPrice = 0.1; // 19.02.2025, standard https://cronos.org/gastracker
+// Given usd for the related token
+tokenToUsd = 1; // 19.02.2025
+// Calculate the ETH cost for each gas limit
+ethCosts = gasList.map(gas => gasToEth(gas, gweiPrice));
+// Call the printing function with the list of ETH costs
+printEthCosts(ethCosts, tokenToUsd, "xDAI", "Gnosis");
