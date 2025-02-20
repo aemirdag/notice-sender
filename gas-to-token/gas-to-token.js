@@ -20,7 +20,7 @@ function printEthCosts(costs, usdPerToken, tokenName, blockchain) {
     console.log(`Calculated ${tokenName} Costs on ${blockchain}:`);
     costs.forEach((cost, index) => {
       const usdCost = cost * usdPerToken;
-      console.log(`Transaction ${index + 1}: ${cost} ${tokenName} (${usdCost.toFixed(5)} USD)`);
+      console.log(`Gas ${index + 1}: ${cost.toFixed(8)} ${tokenName} (${usdCost.toFixed(5)} USD)`);
     });
 }
 
@@ -110,10 +110,20 @@ printEthCosts(ethCosts, tokenToUsd, "CRO", "Cronos EVM");
 
 // Gnosis
 // Given gas price in gwei
-gweiPrice = 0.1; // 19.02.2025, standard https://cronos.org/gastracker
+gweiPrice = 1; // 19.02.2025, fast, https://gnosisscan.io/gastracker
 // Given usd for the related token
 tokenToUsd = 1; // 19.02.2025
 // Calculate the ETH cost for each gas limit
 ethCosts = gasList.map(gas => gasToEth(gas, gweiPrice));
 // Call the printing function with the list of ETH costs
 printEthCosts(ethCosts, tokenToUsd, "xDAI", "Gnosis");
+
+// Moonbeam Chain
+// Given gas price in gwei
+gweiPrice = 31.25; // 19.02.2025, fast, https://moonscan.io/gastracker
+// Given usd for the related token
+tokenToUsd = 0.13; // 19.02.2025
+// Calculate the ETH cost for each gas limit
+ethCosts = gasList.map(gas => gasToEth(gas, gweiPrice));
+// Call the printing function with the list of ETH costs
+printEthCosts(ethCosts, tokenToUsd, "GLMR", "Moonbeam Chain");
