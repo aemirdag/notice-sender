@@ -113,22 +113,6 @@ const address = `${process.env.SEPOLIA_WALLET_ADDRESS}`;
 const noticeTimestamps = {};
 // Array to store the response durations for each notice
 const responseDurations = [];
-// Global variable to track nonce
-let localNonce = null;
-
-/**
- * Syncs the localNonce with the chain's pending transaction count.
- * Called periodically (e.g., on new blocks or after a reorg).
- */
-async function syncNonceWithChain() {
-  try {
-    const chainNonce = await web3.eth.getTransactionCount(address, 'pending');
-    localNonce = chainNonce;
-    console.log(`Synced local nonce with chain: ${localNonce}`);
-  } catch (error) {
-    console.error('Error syncing nonce with chain:', error);
-  }
-}
 
 // Register event listeners in a function
 function registerEventListeners() {
@@ -142,12 +126,12 @@ function registerEventListeners() {
 
     // Calculate the response time if the notice timestamp exists
     if (noticeTimestamps[noticeID]) {
-      const duration = Date.now() - noticeTimestamps[noticeID]; // remove delay
+      const duration = Date.now() - noticeTimestamps[noticeID];
       responseDurations.push(duration);
       console.log(`NoticeID ${noticeID} response time: ${duration} ms`);
       
-      // For test purposes: if we expect 5 responses, calculate the average once all are received
-      if (responseDurations.length === 5) {
+      // For test purposes: if we expect 10 responses, calculate the average once all are received
+      if (responseDurations.length === 10) {
         const total = responseDurations.reduce((acc, val) => acc + val, 0);
         const avg = total / responseDurations.length;
         console.log(`Average response time: ${avg} ms`);
@@ -161,17 +145,11 @@ async function sendNotice(noticeData, noticeID, gsmNumber) {
   // Record the current time when sending the notice
   noticeTimestamps[noticeID] = Date.now();
 
-  // Ensure localNonce is synced before using it.
-  await syncNonceWithChain();
-
   const tx = contract.methods.sendNoticeData(noticeData, noticeID, gsmNumber);
   const gas = await tx.estimateGas({ from: address });
   const gasPriceRaw = await web3.eth.getGasPrice();
   const gasPrice = Math.floor(Number(gasPriceRaw) * 1.2);
-  // Use our tracked localNonce.
-  const nonceToUse = localNonce;
-  // Increment our localNonce for the next transaction.
-  localNonce++;
+  const nonceToUse = await web3.eth.getTransactionCount(address, 'pending');
 
   const txData = {
     from: address,
@@ -205,7 +183,7 @@ async function sendNotice(noticeData, noticeID, gsmNumber) {
 }
 
 // Test code: send three different notices with 5-second intervals
-async function testProducer() {
+async function testResponseTime() {
   registerEventListeners();
 
   const notices = [
@@ -214,6 +192,11 @@ async function testProducer() {
     { noticeData: 'Notice 3: This is notice 3.', noticeID: 3, gsmNumber: 3456789012 },
     { noticeData: 'Notice 4: This is notice 4.', noticeID: 4, gsmNumber: 5326789643 },
     { noticeData: 'Notice 5: This is notice 5.', noticeID: 5, gsmNumber: 7656589237 },
+    { noticeData: 'Notice 6: This is notice 6.', noticeID: 6, gsmNumber: 5235389237 },
+    { noticeData: 'Notice 7: This is notice 7.', noticeID: 7, gsmNumber: 5356553237 },
+    { noticeData: 'Notice 8: This is notice 8.', noticeID: 8, gsmNumber: 2394873298 },
+    { noticeData: 'Notice 9: This is notice 9.', noticeID: 9, gsmNumber: 2375928737 },
+    { noticeData: 'Notice 10: This is notice 10.', noticeID: 10, gsmNumber: 8190739523 },
   ];
 
   for (const notice of notices) {
@@ -221,8 +204,8 @@ async function testProducer() {
 
     await sendNotice(notice.noticeData, notice.noticeID, notice.gsmNumber);
     
-    // wait 1 seconds between notices to remove "replacement transaction underpriced" error
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // wait 5 seconds between notices to remove "replacement transaction underpriced" error
+    await new Promise(resolve => setTimeout(resolve, 5000));
   }
 }
 
@@ -230,21 +213,22 @@ async function testProducer() {
  * Test function that sends notices with increasing notice data lengths
  * and collects the gas consumption for each.
  */
-async function testGasMetricWithIncreasingData() {
+async function testGasWithIncreasingData() {
+  registerEventListeners();
   // Array of different data lengths to test
-  const dataLengths = [10, 50, 100, 500, 1000, 5000];
+  const dataLengths = [100, 200, 500, 1000, 2000, 3000, 4000, 5000, 6000, 10000];
   const gasMetrics = [];
   let noticeID = 1;
   
   for (const length of dataLengths) {
     // Generate a notice string consisting of repeated 'A' characters.
     const noticeData = 'A'.repeat(length);
-    const {gasUsed, _} = await sendNotice(noticeData, noticeID, 1234567890);
-    gasMetrics.push({ noticeID, dataLength: length, gasUsed });
+    const receiptData = await sendNotice(noticeData, noticeID, 1234567890);
+    gasMetrics.push({ noticeID, dataLength: length, usedGas: receiptData.usedGas });
     noticeID++;
 
-    // wait 1 seconds between notices to remove "replacement transaction underpriced" error
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    // wait 5 seconds between notices to remove "replacement transaction underpriced" error
+    await new Promise((resolve) => setTimeout(resolve, 5000));
   }
   
   console.log('Gas Metrics Summary:', gasMetrics);
@@ -255,24 +239,25 @@ async function testGasMetricWithIncreasingData() {
  * and collects the block sizes.
  */
 async function testBlockSizeWithIncreasingData() {
+  registerEventListeners();
   // Array of different data lengths to test
-  const dataLengths = [10, 50, 100, 500, 1000, 5000];
+  const dataLengths = [100, 200, 500, 1000, 2000, 3000, 4000, 5000, 6000, 10000];
   const blockSizeMetrics = [];
   let noticeID = 1;
   
   for (const length of dataLengths) {
     // Generate a notice string consisting of repeated 'A' characters.
     const noticeData = 'A'.repeat(length);
-    const {_, blockSize} = await sendNotice(noticeData, noticeID, 1234567890);
-    blockSizeMetrics.push({ noticeID, dataLength: length, blockSize });
+    const receiptData = await sendNotice(noticeData, noticeID, 1234567890);
+    blockSizeMetrics.push({ noticeID, dataLength: length, blockSize: receiptData.blockSize });
     noticeID++;
-    // wait 1 seconds between notices to remove "replacement transaction underpriced" error
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    // wait 5 seconds between notices to remove "replacement transaction underpriced" error
+    await new Promise((resolve) => setTimeout(resolve, 5000));
   }
   
   console.log('Block Size Metrics Summary:', blockSizeMetrics);
 }
 
-//testProducer();
-//testGasMetricWithIncreasingData();
-testBlockSizeWithIncreasingData();
+//testResponseTime();
+testGasWithIncreasingData();
+//testBlockSizeWithIncreasingData();
