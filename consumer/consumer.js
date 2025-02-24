@@ -123,7 +123,7 @@ function registerConsumerEventListeners() {
   noticeDataEvent.on('data', event => {
     const { noticeData, noticeID, gsmNumber } = event.returnValues;
 
-    console.log(`Consumer received NoticeData event: noticeData: ${noticeData}, noticeID: ${noticeID}, gsmNumber: ${gsmNumber}`);
+    console.log(`Consumer received NoticeData event: noticeData: notice-data-test, noticeID: ${noticeID}, gsmNumber: ${gsmNumber}`);
     
     handleNotice(noticeData, noticeID, gsmNumber);
   });

@@ -113,6 +113,10 @@ const address = `${process.env.SEPOLIA_WALLET_ADDRESS}`;
 const noticeTimestamps = {};
 // Array to store the response durations for each notice
 const responseDurations = [];
+// test notices
+const notices = [];
+// response time test size
+const numOfTests = 100;
 
 // Register event listeners in a function
 function registerEventListeners() {
@@ -121,19 +125,26 @@ function registerEventListeners() {
   noticeSentEvent.on('data', event => {
     const { status, noticeID, gsmNumber } = event.returnValues;
 
-    console.log(`Producer received NoticeSent event:
-      Status: ${status}, NoticeID: ${noticeID}, GSM Number: ${gsmNumber}`);
+    console.log(`Producer received NoticeSent event: Status: ${status}, NoticeID: ${noticeID}, GSM Number: ${gsmNumber}`);
 
     // Calculate the response time if the notice timestamp exists
     if (noticeTimestamps[noticeID]) {
       const duration = Date.now() - noticeTimestamps[noticeID];
       responseDurations.push(duration);
+
       console.log(`NoticeID ${noticeID} response time: ${duration} ms`);
       
-      // For test purposes: if we expect 10 responses, calculate the average once all are received
-      if (responseDurations.length === 10) {
+      // if each response is received for each notice, take average
+      if (responseDurations.length === notices.length) {
+        console.log(`Response Time Summary: [`);
+        for (const notice of notices) {
+          console.log(`Notice ID: ${notice.noticeID}, Data Length: ${notice.dataLength}, Response Time: ${responseDurations[notice.noticeID - 1]}`);
+        }
+        console.log(`]`);
+
         const total = responseDurations.reduce((acc, val) => acc + val, 0);
         const avg = total / responseDurations.length;
+
         console.log(`Average response time: ${avg} ms`);
       }
     }
@@ -159,7 +170,7 @@ async function sendNotice(noticeData, noticeID, gsmNumber) {
     nonce: nonceToUse,
     gasPrice,
   };
-
+  
   const signedTx = await web3.eth.accounts.signTransaction(txData, privateKey);
   const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
 
@@ -172,35 +183,38 @@ async function sendNotice(noticeData, noticeID, gsmNumber) {
     `NoticeID ${noticeID}, Data Length: ${noticeData.length}, Gas Used: ${receipt.gasUsed}`
   );
 
-  console.log(
-    `NoticeID ${noticeID}, Data Length: ${noticeData.length}, Block Number: ${receipt.blockNumber}, Block Size: ${block.size} bytes`
-  );
+  //console.log(
+  //  `NoticeID ${noticeID}, Data Length: ${noticeData.length}, Block Number: ${receipt.blockNumber}, Block Size: ${block.size} bytes`
+  //);
 
   return {
     usedGas: receipt.gasUsed,
-    blockSize: block.size,
+    blockSize: null,
   }; 
+}
+
+function generateRandomGsmNumber() {
+  // Generates a number between 1000000000 and 9999999999
+  return Math.floor(Math.random() * 9000000000) + 1000000000;
 }
 
 // Test code: send three different notices with 5-second intervals
 async function testResponseTime() {
   registerEventListeners();
 
-  const notices = [
-    { noticeData: 'Notice 1: This is notice 1.', noticeID: 1, gsmNumber: 1234567890 },
-    { noticeData: 'Notice 2: This is notice 2.', noticeID: 2, gsmNumber: 2345678901 },
-    { noticeData: 'Notice 3: This is notice 3.', noticeID: 3, gsmNumber: 3456789012 },
-    { noticeData: 'Notice 4: This is notice 4.', noticeID: 4, gsmNumber: 5326789643 },
-    { noticeData: 'Notice 5: This is notice 5.', noticeID: 5, gsmNumber: 7656589237 },
-    { noticeData: 'Notice 6: This is notice 6.', noticeID: 6, gsmNumber: 5235389237 },
-    { noticeData: 'Notice 7: This is notice 7.', noticeID: 7, gsmNumber: 5356553237 },
-    { noticeData: 'Notice 8: This is notice 8.', noticeID: 8, gsmNumber: 2394873298 },
-    { noticeData: 'Notice 9: This is notice 9.', noticeID: 9, gsmNumber: 2375928737 },
-    { noticeData: 'Notice 10: This is notice 10.', noticeID: 10, gsmNumber: 8190739523 },
-  ];
+  // generate numOfTests test notice
+  for (let i = 0; i < numOfTests; i++) {
+    const noticeData = `Notice ${i + 1}: This is notice ${i + 1}.`;
+    notices.push({
+      noticeData: noticeData,
+      noticeID: i + 1,
+      gsmNumber: generateRandomGsmNumber(),
+      dataLength: noticeData.length,
+    });
+  }
 
   for (const notice of notices) {
-    console.log(`Producer sending: ${notice.noticeData}`);
+    console.log(`Producer sending notice ID: ${notice.noticeID}`);
 
     await sendNotice(notice.noticeData, notice.noticeID, notice.gsmNumber);
     
@@ -215,17 +229,36 @@ async function testResponseTime() {
  */
 async function testGasWithIncreasingData() {
   registerEventListeners();
+
   // Array of different data lengths to test
-  const dataLengths = [100, 200, 500, 1000, 2000, 3000, 4000, 5000, 6000, 10000];
+  const dataLengths = [];
+  for (let i = 1; i <= numOfTests; i++) {
+    dataLengths.push(i * 100);
+  }
+
   const gasMetrics = [];
   let noticeID = 1;
-  
+
   for (const length of dataLengths) {
     // Generate a notice string consisting of repeated 'A' characters.
     const noticeData = 'A'.repeat(length);
-    const receiptData = await sendNotice(noticeData, noticeID, 1234567890);
-    gasMetrics.push({ noticeID, dataLength: length, usedGas: receiptData.usedGas });
+
+    notices.push({
+      noticeData: noticeData,
+      noticeID: noticeID,
+      gsmNumber: generateRandomGsmNumber(),
+      dataLength: length,
+    });
+
     noticeID++;
+  }
+  
+  for (const notice of notices) {
+    console.log(`Producer sending notice ID: ${notice.noticeID}`);
+
+    const receiptData = await sendNotice(notice.noticeData, notice.noticeID, notice.gsmNumber);
+
+    gasMetrics.push({ noticeID, dataLength: notice.dataLength, usedGas: receiptData.usedGas });
 
     // wait 5 seconds between notices to remove "replacement transaction underpriced" error
     await new Promise((resolve) => setTimeout(resolve, 5000));
