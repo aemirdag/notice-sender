@@ -258,7 +258,7 @@ async function testGasWithIncreasingData() {
 
     const receiptData = await sendNotice(notice.noticeData, notice.noticeID, notice.gsmNumber);
 
-    gasMetrics.push({ noticeID, dataLength: notice.dataLength, usedGas: receiptData.usedGas });
+    gasMetrics.push({ noticeID: notice.noticeID, dataLength: notice.dataLength, usedGas: receiptData.usedGas });
 
     // wait 5 seconds between notices to remove "replacement transaction underpriced" error
     await new Promise((resolve) => setTimeout(resolve, 5000));

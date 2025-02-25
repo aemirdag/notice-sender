@@ -1,7 +1,10 @@
 // testApi.js
 import express from 'express';
 import bodyParser from 'body-parser';
-
+//canım sevgilim canım sevgilim
+//ben sevgilimi cok seviyorum
+//kalp kalp kalp
+//ask
 const app = express();
 app.use(bodyParser.json());
 
@@ -19,5 +22,5 @@ app.post('/sms/send/rest/v1', (req, res) => {
 
 const PORT = 3000;
 app.listen(PORT, () => {
-  console.log(`Test API server is running on port ${PORT}`);
+  console.log(`Test API server is running on port ${PORT} with love`);
 });
