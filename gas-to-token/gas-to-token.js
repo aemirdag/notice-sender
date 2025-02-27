@@ -25,7 +25,7 @@ function printEthCosts(costs, usdPerToken, tokenName, blockchain) {
 }
 
 // Example list of gas limits (e.g., for different transactions)
-const gasList = [29969, 32339, 39462, 51704, 75801, 99901, 124006, 148504, 172616, 269493];
+const gasList = [32781, 35139, 37533, 39891, 42262, 44644, 47014, 49385, 52133, 54504];
 
 // Ethereum Mainnet
 // Given gas price in gwei
