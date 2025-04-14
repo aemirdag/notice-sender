@@ -14,9 +14,9 @@ contract Transceiver {
     mapping(uint64 => NoticeStatus) private jobIdToNoticeStatus;
 
     // Emitted when the Producer sends a notice (to be picked up by the Consumer)
-    event NoticeData(string noticeData, uint64 noticeID, uint64 gsmNumber);
+    event NoticeData(string noticeData, uint64 noticeID, uint64 gsmNumber, uint256 blockTime);
     // Emitted when the Consumer sends an update, or a new entry (to be picked up by the Producer)
-    event NoticeSent(uint8 status, uint64 noticeID, uint64 gsmNumber);
+    event NoticeSent(uint8 status, uint64 noticeID, uint64 gsmNumber, uint256 blockTime);
 
     /// @notice Called by the Producer to send notice data.
     /// @param noticeData The notice text.
@@ -30,7 +30,8 @@ contract Transceiver {
         // Save the GSM number using the noticeID as key
         noticeIdToGsm[noticeID] = gsmNumber;
         // Emit event so that the Consumer can process the notice
-        emit NoticeData(noticeData, noticeID, gsmNumber);
+        uint256 currentTimestamp = block.timestamp;
+        emit NoticeData(noticeData, noticeID, gsmNumber, currentTimestamp);
     }
 
     /// @notice Called by the Consumer to update notice status (using API response).
@@ -58,7 +59,8 @@ contract Transceiver {
         if (shouldEmit) {
             // Retrieve the GSM number.
             uint64 gsmNumber = noticeIdToGsm[noticeID];
-            emit NoticeSent(status, noticeID, gsmNumber);
+            uint256 currentTimestamp = block.timestamp;
+            emit NoticeSent(status, noticeID, gsmNumber, currentTimestamp);
         }
     }
 }

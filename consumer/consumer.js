@@ -27,6 +27,12 @@ const CONTRACT_ABI = [
         "internalType": "uint64",
         "name": "gsmNumber",
         "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "blockTime",
+        "type": "uint256"
       }
     ],
     "name": "NoticeData",
@@ -52,6 +58,12 @@ const CONTRACT_ABI = [
         "internalType": "uint64",
         "name": "gsmNumber",
         "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "blockTime",
+        "type": "uint256"
       }
     ],
     "name": "NoticeSent",
@@ -105,7 +117,7 @@ const CONTRACT_ABI = [
   }
 ];
 
-const contractAddress = "0xfD463C307Af7931cd9681563BDe8857f56f72BF4";
+const contractAddress = "0xcBeFE1e741107E9DEB35d2E3564D4A0548841DCD";
 const contract = new web3.eth.Contract(CONTRACT_ABI, contractAddress);
 
 const privateKey = `${process.env.SEPOLIA_PRIVATE_KEY}`;
@@ -121,17 +133,21 @@ function registerConsumerEventListeners() {
   const noticeDataEvent = contract.events.NoticeData();
 
   noticeDataEvent.on('data', event => {
-    const { noticeData, noticeID, gsmNumber } = event.returnValues;
+    const { noticeData, noticeID, gsmNumber, blockTime } = event.returnValues;
 
-    console.log(`Consumer received NoticeData event: noticeData: notice-data-test, noticeID: ${noticeID}, gsmNumber: ${gsmNumber}`);
+    console.log(`Consumer received NoticeData event: noticeData: notice-data-test, noticeID: ${noticeID}, gsmNumber: ${gsmNumber}, blockTime: ${blockTime}`);
     
-    handleNotice(noticeData, noticeID, gsmNumber);
+    handleNotice(noticeData, noticeID, gsmNumber, blockTime);
   });
 }
 
 // When a notice is received, call the API via HTTP POST and then update the contract
-async function handleNotice(noticeData, noticeID, gsmNumber) {
+async function handleNotice(noticeData, noticeID, gsmNumber, blockTime) {
   try {
+    const receivedTime = Date.now();
+    const eventDelay = BigInt(receivedTime) - blockTime*BigInt(1000); // miliseconds
+    console.log(`NoticeID ${noticeID} event delay: ${eventDelay} ms`);
+
     // Prepare the data for the API request (similar to your provided Python sample)
     const data = {
       msgheader: authKey,

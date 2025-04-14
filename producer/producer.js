@@ -25,6 +25,12 @@ const CONTRACT_ABI = [
         "internalType": "uint64",
         "name": "gsmNumber",
         "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "blockTime",
+        "type": "uint256"
       }
     ],
     "name": "NoticeData",
@@ -50,6 +56,12 @@ const CONTRACT_ABI = [
         "internalType": "uint64",
         "name": "gsmNumber",
         "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "blockTime",
+        "type": "uint256"
       }
     ],
     "name": "NoticeSent",
@@ -103,7 +115,7 @@ const CONTRACT_ABI = [
   }
 ];
 
-const contractAddress = "0xfD463C307Af7931cd9681563BDe8857f56f72BF4";
+const contractAddress = "0xcBeFE1e741107E9DEB35d2E3564D4A0548841DCD";
 const contract = new web3.eth.Contract(CONTRACT_ABI, contractAddress);
 
 const privateKey = `${process.env.SEPOLIA_PRIVATE_KEY}`;
@@ -116,23 +128,25 @@ const responseDurations = [];
 // test notices
 const notices = [];
 // response time test size
-const numOfTests = 100;
+const numOfTests = 5;
 
 // Register event listeners in a function
 function registerEventListeners() {
   const noticeSentEvent = contract.events.NoticeSent();
 
   noticeSentEvent.on('data', event => {
-    const { status, noticeID, gsmNumber } = event.returnValues;
+    const { status, noticeID, gsmNumber, blockTime } = event.returnValues;
 
-    console.log(`Producer received NoticeSent event: Status: ${status}, NoticeID: ${noticeID}, GSM Number: ${gsmNumber}`);
+    console.log(`Producer received NoticeSent event: Status: ${status}, NoticeID: ${noticeID}, GSM Number: ${gsmNumber}, blockTime: ${blockTime}`);
 
     // Calculate the response time if the notice timestamp exists
     if (noticeTimestamps[noticeID]) {
+      const receivedTime = Date.now();
+      const eventDelay = BigInt(receivedTime) - blockTime*BigInt(1000); // miliseconds
       const duration = Date.now() - noticeTimestamps[noticeID];
       responseDurations.push(duration);
 
-      console.log(`NoticeID ${noticeID} response time: ${duration} ms`);
+      console.log(`NoticeID ${noticeID} response time: ${duration} ms, event delay: ${eventDelay} ms`);
       
       // if each response is received for each notice, take average
       if (responseDurations.length === notices.length) {
@@ -291,6 +305,6 @@ async function testBlockSizeWithIncreasingData() {
   console.log('Block Size Metrics Summary:', blockSizeMetrics);
 }
 
-//testResponseTime();
-testGasWithIncreasingData();
+testResponseTime();
+//testGasWithIncreasingData();
 //testBlockSizeWithIncreasingData();
