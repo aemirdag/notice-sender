@@ -68,6 +68,44 @@ const CONTRACT_ABI = [
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "noticeID",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "blockTime",
+        "type": "uint256"
+      }
+    ],
+    "name": "SendNoticeDataFunctionCallReceived",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "noticeID",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "blockTime",
+        "type": "uint256"
+      }
+    ],
+    "name": "UpdateNoticeStatusFunctionCallReceived",
+    "type": "event"
+  },
+  {
     "inputs": [
       {
         "internalType": "string",
@@ -115,7 +153,7 @@ const CONTRACT_ABI = [
   }
 ];
 
-const contractAddress = "0xcBeFE1e741107E9DEB35d2E3564D4A0548841DCD";
+const contractAddress = "0xAEA73f5b47A694B036Fd2082d6376988A0Ac9596";
 const contract = new web3.eth.Contract(CONTRACT_ABI, contractAddress);
 
 const privateKey = `${process.env.SEPOLIA_PRIVATE_KEY}`;
@@ -125,6 +163,10 @@ const address = `${process.env.SEPOLIA_WALLET_ADDRESS}`;
 const noticeTimestamps = {};
 // Array to store the response durations for each notice
 const responseDurations = [];
+// Array to store the function call delays for each notice
+const eventDelays = [];
+// Array to store the function call delays for each notice
+const functionCallDelays = [];
 // test notices
 const notices = [];
 // response time test size
@@ -133,6 +175,7 @@ const numOfTests = 5;
 // Register event listeners in a function
 function registerEventListeners() {
   const noticeSentEvent = contract.events.NoticeSent();
+  const sendNoticeDataFunctionCallReceivedEvent = contract.events.SendNoticeDataFunctionCallReceived();
 
   noticeSentEvent.on('data', event => {
     const { status, noticeID, gsmNumber, blockTime } = event.returnValues;
@@ -142,24 +185,53 @@ function registerEventListeners() {
     // Calculate the response time if the notice timestamp exists
     if (noticeTimestamps[noticeID]) {
       const receivedTime = Date.now();
-      const eventDelay = BigInt(receivedTime) - blockTime*BigInt(1000); // miliseconds
+      const eventDelay = BigInt(receivedTime) - blockTime*BigInt(1000); // milliseconds
       const duration = Date.now() - noticeTimestamps[noticeID];
       responseDurations.push(duration);
+      eventDelays.push(eventDelay);
 
       console.log(`NoticeID ${noticeID} response time: ${duration} ms, event delay: ${eventDelay} ms`);
       
       // if each response is received for each notice, take average
       if (responseDurations.length === notices.length) {
-        console.log(`Response Time Summary: [`);
+        console.log(`Response Time and Event Delay Summary: [`);
         for (const notice of notices) {
-          console.log(`Notice ID: ${notice.noticeID}, Data Length: ${notice.dataLength}, Response Time: ${responseDurations[notice.noticeID - 1]}`);
+          console.log(`Notice ID: ${notice.noticeID}, Data Length: ${notice.dataLength}, Response Time: ${responseDurations[notice.noticeID - 1]}, 
+            Event Delay: ${eventDelays[notice.noticeID - 1]}`);
         }
         console.log(`]`);
 
-        const total = responseDurations.reduce((acc, val) => acc + val, 0);
-        const avg = total / responseDurations.length;
+        const totalResponseDuration = responseDurations.reduce((acc, val) => acc + val, 0);
+        const avgResponseDuration = totalResponseDuration / responseDurations.length;
 
-        console.log(`Average response time: ${avg} ms`);
+        const totalEventDelay = eventDelays.reduce((acc, val) => acc + val, 0);
+        const avgEventDelay = totalEventDelay / eventDelays.length;
+
+        console.log(`Average response time: ${avgResponseDuration} ms, Average event delay time: ${avgEventDelay} ms`);
+      }
+    }
+  });
+
+  sendNoticeDataFunctionCallReceivedEvent.on('data', event => {
+    const { noticeID, blockTime } = event.returnValues;
+
+    if (noticeTimestamps[noticeID]) {
+      const sendTime = noticeTimestamps[noticeID];
+      const functionCallDelay = blockTime*BigInt(1000) - BigInt(sendTime); // milliseconds
+      functionCallDelays.push(functionCallDelay);
+
+      // if each function call delay is received for each notice, take average
+      if (functionCallDelay.length === notices.length) {
+        console.log(`Function Call Delay Summary: [`);
+        for (const notice of notices) {
+          console.log(`Notice ID: ${notice.noticeID}, Function Call Delay: ${functionCallDelays[notice.noticeID - 1]}`);
+        }
+        console.log(`]`);
+
+        const totalFunctionCallDelay = functionCallDelays.reduce((acc, val) => acc + val, 0);
+        const avgFunctionCallDelay = totalFunctionCallDelay / functionCallDelays.length;
+
+        console.log(`Average function call delay time: ${avgFunctionCallDelay} ms`);
       }
     }
   });
