@@ -153,7 +153,7 @@ const CONTRACT_ABI = [
   }
 ];
 
-const contractAddress = "0xAEA73f5b47A694B036Fd2082d6376988A0Ac9596";
+const contractAddress = "0x3c8EC28Dc66203f0e4E959301F4A5cBf757e96E6";
 const contract = new web3.eth.Contract(CONTRACT_ABI, contractAddress);
 
 const privateKey = `${process.env.SEPOLIA_PRIVATE_KEY}`;
@@ -170,7 +170,7 @@ const functionCallDelays = [];
 // test notices
 const notices = [];
 // response time test size
-const numOfTests = 5;
+const numOfTests = 100;
 
 // Register event listeners in a function
 function registerEventListeners() {
@@ -190,24 +190,32 @@ function registerEventListeners() {
       responseDurations.push(duration);
       eventDelays.push(eventDelay);
 
-      console.log(`NoticeID ${noticeID} response time: ${duration} ms, event delay: ${eventDelay} ms`);
+      console.log(`NoticeID ${noticeID}, response time: ${duration} ms`);
+      console.log(`NoticeID ${noticeID}, event delay: ${eventDelay} ms`);
       
       // if each response is received for each notice, take average
       if (responseDurations.length === notices.length) {
-        console.log(`Response Time and Event Delay Summary: [`);
+        console.log(`Response Time Summary: [`);
         for (const notice of notices) {
-          console.log(`Notice ID: ${notice.noticeID}, Data Length: ${notice.dataLength}, Response Time: ${responseDurations[notice.noticeID - 1]}, 
-            Event Delay: ${eventDelays[notice.noticeID - 1]}`);
+          console.log(`Notice ID: ${notice.noticeID}, Data Length: ${notice.dataLength}, Response Time: ${responseDurations[notice.noticeID - 1]}`);
         }
         console.log(`]`);
 
         const totalResponseDuration = responseDurations.reduce((acc, val) => acc + val, 0);
         const avgResponseDuration = totalResponseDuration / responseDurations.length;
 
-        const totalEventDelay = eventDelays.reduce((acc, val) => acc + val, 0);
-        const avgEventDelay = totalEventDelay / eventDelays.length;
+        console.log(`Average response time: ${avgResponseDuration} ms`);
 
-        console.log(`Average response time: ${avgResponseDuration} ms, Average event delay time: ${avgEventDelay} ms`);
+        console.log(`Event Delay Summary: [`);
+        for (const notice of notices) {
+          console.log(`Notice ID: ${notice.noticeID}, Event Delay: ${eventDelays[notice.noticeID - 1]}`);
+        }
+        console.log(`]`);
+
+        const totalEventDelay = eventDelays.reduce((acc, val) => acc + val, BigInt(0));
+        const avgEventDelay = totalEventDelay / BigInt(eventDelays.length);
+
+        console.log(`Average event delay time: ${avgEventDelay} ms`);
       }
     }
   });
@@ -218,18 +226,19 @@ function registerEventListeners() {
     if (noticeTimestamps[noticeID]) {
       const sendTime = noticeTimestamps[noticeID];
       const functionCallDelay = blockTime*BigInt(1000) - BigInt(sendTime); // milliseconds
+      console.log(`NoticeID ${noticeID} function call delay: ${functionCallDelay} ms`);
       functionCallDelays.push(functionCallDelay);
 
       // if each function call delay is received for each notice, take average
-      if (functionCallDelay.length === notices.length) {
+      if (functionCallDelays.length === notices.length) {
         console.log(`Function Call Delay Summary: [`);
         for (const notice of notices) {
           console.log(`Notice ID: ${notice.noticeID}, Function Call Delay: ${functionCallDelays[notice.noticeID - 1]}`);
         }
         console.log(`]`);
 
-        const totalFunctionCallDelay = functionCallDelays.reduce((acc, val) => acc + val, 0);
-        const avgFunctionCallDelay = totalFunctionCallDelay / functionCallDelays.length;
+        const totalFunctionCallDelay = functionCallDelays.reduce((acc, val) => acc + val, BigInt(0));
+        const avgFunctionCallDelay = totalFunctionCallDelay / BigInt(functionCallDelays.length);
 
         console.log(`Average function call delay time: ${avgFunctionCallDelay} ms`);
       }

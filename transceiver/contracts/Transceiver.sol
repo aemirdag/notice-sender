@@ -52,7 +52,7 @@ contract Transceiver {
         uint8 status
     ) external {
         uint256 currentTimestamp = block.timestamp;
-        emit SendNoticeDataFunctionCallReceived(noticeID, currentTimestamp);
+        emit UpdateNoticeStatusFunctionCallReceived(noticeID, currentTimestamp);
 
         bool shouldEmit = false;
         

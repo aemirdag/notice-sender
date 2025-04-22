@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/Users/aemirdag/Desktop/git/notice-sender/transceiver/contracts/Transceiver.sol": {
-      "lastModificationDate": 1744917051619,
-      "contentHash": "4d03860c3ecd78fe7e6c100099dd9ac3",
+      "lastModificationDate": 1745345415011,
+      "contentHash": "02de8da77c495eea9d5ef7c627e16580",
       "sourceName": "contracts/Transceiver.sol",
       "solcConfig": {
         "version": "0.8.27",

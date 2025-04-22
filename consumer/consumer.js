@@ -155,7 +155,7 @@ const CONTRACT_ABI = [
   }
 ];
 
-const contractAddress = "0xAEA73f5b47A694B036Fd2082d6376988A0Ac9596";
+const contractAddress = "0x3c8EC28Dc66203f0e4E959301F4A5cBf757e96E6";
 const contract = new web3.eth.Contract(CONTRACT_ABI, contractAddress);
 
 const privateKey = `${process.env.SEPOLIA_PRIVATE_KEY}`;
@@ -176,7 +176,7 @@ const functionCallDelays = [];
 const receivedNoticeIDs = [];
 
 // response time test size
-const numOfTests = 5;
+const numOfTests = 100;
 
 // Register event listener for NoticeData events (sent from the contract)
 function registerConsumerEventListeners() {
@@ -205,16 +205,17 @@ async function handleNoticeDataEvent(noticeData, noticeID, gsmNumber, blockTime)
     const eventDelay = BigInt(receivedTime) - blockTime*BigInt(1000); // miliseconds
     console.log(`NoticeID ${noticeID} event delay: ${eventDelay} ms`);
     eventDelays.push(eventDelay);
+    receivedNoticeIDs.push(noticeID);
 
     if (eventDelays.length === numOfTests) {
       console.log(`Event Delay Summary: [`);
       for (const noticeID of receivedNoticeIDs) {
-        console.log(`Notice ID: ${noticeID}, Event Delay: ${eventDelays[noticeID - 1]}`);
+        console.log(`Notice ID: ${noticeID}, Event Delay: ${eventDelays[noticeID - BigInt(1)]}`);
       }
       console.log(`]`);
 
-      const totalEventDelay = eventDelays.reduce((acc, val) => acc + val, 0);
-      const avgEventDelay = totalEventDelay / eventDelays.length;
+      const totalEventDelay = eventDelays.reduce((acc, val) => acc + val, BigInt(0));
+      const avgEventDelay = totalEventDelay / BigInt(eventDelays.length);
 
       console.log(`Average event delay time: ${avgEventDelay} ms`);
     }
@@ -258,18 +259,19 @@ async function handleNoticeDataEvent(noticeData, noticeID, gsmNumber, blockTime)
 async function handleFunctionCallDelayEvent(noticeID, blockTime) {
   const sendTime = noticeTimestamps[noticeID];
   const functionCallDelay = blockTime*BigInt(1000) - BigInt(sendTime); // milliseconds
+  console.log(`NoticeID ${noticeID}, function call delay: ${functionCallDelay} ms`);
   functionCallDelays.push(functionCallDelay);
 
   // if each function call delay is received for each notice, take average
-  if (functionCallDelay.length === numOfTests) {
+  if (functionCallDelays.length === numOfTests) {
     console.log(`Function Call Delay Summary: [`);
     for (const noticeID of receivedNoticeIDs) {
-      console.log(`Notice ID: ${noticeID}, Function Call Delay: ${functionCallDelays[noticeID - 1]}`);
+      console.log(`Notice ID: ${noticeID}, Function Call Delay: ${functionCallDelays[noticeID - BigInt(1)]}`);
     }
     console.log(`]`);
 
-    const totalFunctionCallDelay = functionCallDelays.reduce((acc, val) => acc + val, 0);
-    const avgFunctionCallDelay = totalFunctionCallDelay / functionCallDelays.length;
+    const totalFunctionCallDelay = functionCallDelays.reduce((acc, val) => acc + val, BigInt(0));
+    const avgFunctionCallDelay = totalFunctionCallDelay / BigInt(functionCallDelays.length);
 
     console.log(`Average function call delay time: ${avgFunctionCallDelay} ms`);
   }
@@ -282,7 +284,6 @@ async function updateNoticeStatus(noticeID, jobID, status) {
   const gasPriceRaw = await web3.eth.getGasPrice();
   const gasPrice = Math.floor(Number(gasPriceRaw) * 1.2); // because of the "replacement transaction underpriced" error
   const nonceToUse = await web3.eth.getTransactionCount(address, 'pending');
-  receivedNoticeIDs.push(noticeID);
   noticeTimestamps[noticeID] = Date.now();
 
   const txData = {
