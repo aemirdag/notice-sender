@@ -25,12 +25,6 @@ const CONTRACT_ABI = [
         "internalType": "uint64",
         "name": "gsmNumber",
         "type": "uint64"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "blockTime",
-        "type": "uint256"
       }
     ],
     "name": "NoticeData",
@@ -56,12 +50,6 @@ const CONTRACT_ABI = [
         "internalType": "uint64",
         "name": "gsmNumber",
         "type": "uint64"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "blockTime",
-        "type": "uint256"
       }
     ],
     "name": "NoticeSent",
@@ -75,12 +63,6 @@ const CONTRACT_ABI = [
         "internalType": "uint64",
         "name": "noticeID",
         "type": "uint64"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "blockTime",
-        "type": "uint256"
       }
     ],
     "name": "SendNoticeDataFunctionCallReceived",
@@ -94,12 +76,6 @@ const CONTRACT_ABI = [
         "internalType": "uint64",
         "name": "noticeID",
         "type": "uint64"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "blockTime",
-        "type": "uint256"
       }
     ],
     "name": "UpdateNoticeStatusFunctionCallReceived",
@@ -153,7 +129,7 @@ const CONTRACT_ABI = [
   }
 ];
 
-const contractAddress = "0x3c8EC28Dc66203f0e4E959301F4A5cBf757e96E6";
+const contractAddress = "0x3D040B264Eb37B9c136DEB13C53Bd7dA10403B88";
 const contract = new web3.eth.Contract(CONTRACT_ABI, contractAddress);
 
 const privateKey = `${process.env.SEPOLIA_PRIVATE_KEY}`;
@@ -170,7 +146,16 @@ const functionCallDelays = [];
 // test notices
 const notices = [];
 // response time test size
-const numOfTests = 100;
+const numOfTests = 5;
+
+// subscribe once at start-up
+const newHeads$ = await web3.eth.subscribe('newBlockHeaders');
+
+const blockSeenTime = new Map();           // blockNumber → Date.now()
+
+newHeads$.on('data', hdr => {
+    blockSeenTime.set(hdr.number, Date.now());   // ms when header arrived
+});
 
 // Register event listeners in a function
 function registerEventListeners() {
@@ -178,14 +163,16 @@ function registerEventListeners() {
   const sendNoticeDataFunctionCallReceivedEvent = contract.events.SendNoticeDataFunctionCallReceived();
 
   noticeSentEvent.on('data', event => {
-    const { status, noticeID, gsmNumber, blockTime } = event.returnValues;
+    const { status, noticeID, gsmNumber } = event.returnValues;
 
-    console.log(`Producer received NoticeSent event: Status: ${status}, NoticeID: ${noticeID}, GSM Number: ${gsmNumber}, blockTime: ${blockTime}`);
+    console.log(`Producer received NoticeSent event: Status: ${status}, NoticeID: ${noticeID}, GSM Number: ${gsmNumber}`);
 
     // Calculate the response time if the notice timestamp exists
     if (noticeTimestamps[noticeID]) {
+      const blockNo  = event.blockNumber;
+      const headerMs = blockSeenTime.get(blockNo);
       const receivedTime = Date.now();
-      const eventDelay = BigInt(receivedTime) - blockTime*BigInt(1000); // milliseconds
+      const eventDelay = receivedTime - headerMs; // milliseconds
       const duration = Date.now() - noticeTimestamps[noticeID];
       responseDurations.push(duration);
       eventDelays.push(eventDelay);
@@ -212,8 +199,8 @@ function registerEventListeners() {
         }
         console.log(`]`);
 
-        const totalEventDelay = eventDelays.reduce((acc, val) => acc + val, BigInt(0));
-        const avgEventDelay = totalEventDelay / BigInt(eventDelays.length);
+        const totalEventDelay = eventDelays.reduce((acc, val) => acc + val, 0);
+        const avgEventDelay = totalEventDelay / eventDelays.length;
 
         console.log(`Average event delay time: ${avgEventDelay} ms`);
       }
@@ -221,11 +208,13 @@ function registerEventListeners() {
   });
 
   sendNoticeDataFunctionCallReceivedEvent.on('data', event => {
-    const { noticeID, blockTime } = event.returnValues;
+    const { noticeID } = event.returnValues;
 
     if (noticeTimestamps[noticeID]) {
+      const blockNo  = event.blockNumber;
+      const headerMs = blockSeenTime.get(blockNo);
       const sendTime = noticeTimestamps[noticeID];
-      const functionCallDelay = blockTime*BigInt(1000) - BigInt(sendTime); // milliseconds
+      const functionCallDelay = headerMs - sendTime; // milliseconds
       console.log(`NoticeID ${noticeID} function call delay: ${functionCallDelay} ms`);
       functionCallDelays.push(functionCallDelay);
 
@@ -237,8 +226,8 @@ function registerEventListeners() {
         }
         console.log(`]`);
 
-        const totalFunctionCallDelay = functionCallDelays.reduce((acc, val) => acc + val, BigInt(0));
-        const avgFunctionCallDelay = totalFunctionCallDelay / BigInt(functionCallDelays.length);
+        const totalFunctionCallDelay = functionCallDelays.reduce((acc, val) => acc + val, 0);
+        const avgFunctionCallDelay = totalFunctionCallDelay / functionCallDelays.length;
 
         console.log(`Average function call delay time: ${avgFunctionCallDelay} ms`);
       }

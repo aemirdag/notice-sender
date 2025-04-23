@@ -14,16 +14,16 @@ contract Transceiver {
     mapping(uint64 => NoticeStatus) private jobIdToNoticeStatus;
 
     // Emits when the Producer calls the sendNoticeData function to emit the function call received time
-    event SendNoticeDataFunctionCallReceived(uint64 noticeID, uint256 blockTime);
+    event SendNoticeDataFunctionCallReceived(uint64 noticeID);
 
     // Emits when the Consumer calls the updateNoticeStatus function to emit the function call received time
-    event UpdateNoticeStatusFunctionCallReceived(uint64 noticeID, uint256 blockTime);
+    event UpdateNoticeStatusFunctionCallReceived(uint64 noticeID);
 
     // Emits when the Producer sends a notice (to be picked up by the Consumer)
-    event NoticeData(string noticeData, uint64 noticeID, uint64 gsmNumber, uint256 blockTime);
+    event NoticeData(string noticeData, uint64 noticeID, uint64 gsmNumber);
 
     // EmitS when the Consumer sends an update, or a new entry (to be picked up by the Producer)
-    event NoticeSent(uint8 status, uint64 noticeID, uint64 gsmNumber, uint256 blockTime);
+    event NoticeSent(uint8 status, uint64 noticeID, uint64 gsmNumber);
 
     /// @notice Called by the Producer to send notice data.
     /// @param noticeData The notice text.
@@ -37,9 +37,8 @@ contract Transceiver {
         // Save the GSM number using the noticeID as key
         noticeIdToGsm[noticeID] = gsmNumber;
         // Emit event so that the Consumer can process the notice
-        uint256 currentTimestamp = block.timestamp;
-        emit SendNoticeDataFunctionCallReceived(noticeID, currentTimestamp);
-        emit NoticeData(noticeData, noticeID, gsmNumber, currentTimestamp);
+        emit SendNoticeDataFunctionCallReceived(noticeID);
+        emit NoticeData(noticeData, noticeID, gsmNumber);
     }
 
     /// @notice Called by the Consumer to update notice status (using API response).
@@ -51,8 +50,7 @@ contract Transceiver {
         uint64 jobID,
         uint8 status
     ) external {
-        uint256 currentTimestamp = block.timestamp;
-        emit UpdateNoticeStatusFunctionCallReceived(noticeID, currentTimestamp);
+        emit UpdateNoticeStatusFunctionCallReceived(noticeID);
 
         bool shouldEmit = false;
         
@@ -70,7 +68,7 @@ contract Transceiver {
         if (shouldEmit) {
             // Retrieve the GSM number.
             uint64 gsmNumber = noticeIdToGsm[noticeID];
-            emit NoticeSent(status, noticeID, gsmNumber, currentTimestamp);
+            emit NoticeSent(status, noticeID, gsmNumber);
         }
     }
 }
