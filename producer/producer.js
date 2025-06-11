@@ -35,7 +35,7 @@ const CONTRACT_ABI = [
     "inputs": [
       {
         "indexed": false,
-        "internalType": "uint8",
+        "internalType": "enum Transceiver.NoticeStatusEnum",
         "name": "status",
         "type": "uint8"
       },
@@ -52,7 +52,7 @@ const CONTRACT_ABI = [
         "type": "uint64"
       }
     ],
-    "name": "NoticeSent",
+    "name": "NoticeStatusUpdate",
     "type": "event"
   },
   {
@@ -117,7 +117,7 @@ const CONTRACT_ABI = [
         "type": "uint64"
       },
       {
-        "internalType": "uint8",
+        "internalType": "enum Transceiver.NoticeStatusEnum",
         "name": "status",
         "type": "uint8"
       }
@@ -129,7 +129,7 @@ const CONTRACT_ABI = [
   }
 ];
 
-const contractAddress = "0x3D040B264Eb37B9c136DEB13C53Bd7dA10403B88";
+const contractAddress = "0xfd91e0852ef70058467299805174b4d4cB959f04";
 const contract = new web3.eth.Contract(CONTRACT_ABI, contractAddress);
 
 const privateKey = `${process.env.SEPOLIA_PRIVATE_KEY}`;
@@ -159,13 +159,23 @@ newHeads$.on('data', hdr => {
 
 // Register event listeners in a function
 function registerEventListeners() {
-  const noticeSentEvent = contract.events.NoticeSent();
+  const noticeStatusUpdateEvent = contract.events.NoticeStatusUpdate();
   const sendNoticeDataFunctionCallReceivedEvent = contract.events.SendNoticeDataFunctionCallReceived();
 
-  noticeSentEvent.on('data', event => {
+  noticeStatusUpdateEvent.on('data', event => {
     const { status, noticeID, gsmNumber } = event.returnValues;
 
-    console.log(`Producer received NoticeSent event: Status: ${status}, NoticeID: ${noticeID}, GSM Number: ${gsmNumber}`);
+    let statusStr = "Invalid";
+    const statusNum = Number(status);
+    if (statusNum === 0) {
+      statusStr = "Queued";
+    } else if (statusNum === 1) {
+      statusStr = "Sent";
+    } else if (statusNum === 2) {
+      statusStr = "Read";
+    }
+
+    console.log(`Producer received NoticeStatusUpdate event: Status: ${statusStr}, NoticeID: ${noticeID}, GSM Number: ${gsmNumber}`);
 
     // Calculate the response time if the notice timestamp exists
     if (noticeTimestamps[noticeID]) {
