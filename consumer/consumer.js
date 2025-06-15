@@ -11,7 +11,6 @@ app.use(express.json());
 
 const web3 = new Web3(new WebSocketProvider(`wss://sepolia.infura.io/ws/v3/${process.env.INFURA_API_KEY}`));
 
-// Replace with your contract’s ABI and deployed address.
 const CONTRACT_ABI = [
   {
     "anonymous": false,
@@ -58,6 +57,12 @@ const CONTRACT_ABI = [
         "internalType": "uint64",
         "name": "gsmNumber",
         "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "clientTsMs",
+        "type": "uint256"
       }
     ],
     "name": "NoticeStatusUpdate",
@@ -128,6 +133,11 @@ const CONTRACT_ABI = [
         "internalType": "enum Transceiver.NoticeStatusEnum",
         "name": "status",
         "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "clientTsMs",
+        "type": "uint256"
       }
     ],
     "name": "updateNoticeStatus",
@@ -137,18 +147,18 @@ const CONTRACT_ABI = [
   }
 ];
 
-const contractAddress = "0xfd91e0852ef70058467299805174b4d4cB959f04";
+const contractAddress = "0x37ec300a584722001D4983bE3A24e79672253F54";
 const contract = new web3.eth.Contract(CONTRACT_ABI, contractAddress);
 
 const privateKey = `${process.env.SEPOLIA_PRIVATE_KEY}`;
 const address = `${process.env.SEPOLIA_WALLET_ADDRESS}`;
 
-// The API URL (for testing you can use your test API module below)
+// the API URL
 const apiUrl = process.env.API_URL;
-// An authentication key to include in the POST request (if needed)
+// An authentication key to include in the POST request, if needed
 const authKey = process.env.API_AUTH_KEY;
 
-// Object to record when each notice is sent (keyed by noticeID)
+// object to record when each notice is sent
 const noticeTimestamps = {};
 // array to store the function call delays for each notice
 const eventDelays = [];
@@ -160,17 +170,19 @@ const receivedNoticeIDs = [];
 const urlMap = new Map();
 // map to store jobIDs' generated for the corresponding notice IDs
 const jobIdMap = new Map();
+// map to store noticeIDs' generated for the corresponding job IDs
+const noticeIdMap = new Map();
 
 // response time test size
-const numOfTests = 5;
+const numOfTests = 100;
 
 // subscribe once at start-up
 const newHeads$ = await web3.eth.subscribe('newBlockHeaders');
 
-const blockSeenTime = new Map();           // blockNumber → Date.now()
+const blockSeenTime = new Map();
 
 newHeads$.on('data', hdr => {
-    blockSeenTime.set(hdr.number, Date.now());   // ms when header arrived
+    blockSeenTime.set(hdr.number, Date.now());
 });
 
 // helper to build deterministic link
@@ -184,7 +196,7 @@ function buildClickLink(noticeID) {
   return `http://localhost:8080/v/${noticeID}-${token}`;
 }
 
-// Register event listener for NoticeData events (sent from the contract)
+// register event listener for NoticeData events (sent from the contract)
 function registerConsumerEventListeners() {
   const noticeDataEvent = contract.events.NoticeData();
   const updateNoticeStatusFunctionCallReceivedEvent = contract.events.UpdateNoticeStatusFunctionCallReceived();
@@ -231,7 +243,7 @@ async function handleNoticeDataEvent(noticeData, noticeID, gsmNumber, block) {
     urlMap.set(Number(noticeID), clickLink ?? "aaaa");
     const smsBody   = `${noticeData}\nView: ${clickLink}`;
 
-    // Prepare the data for the API request (similar to your provided Python sample)
+    // prepare the data for the API request
     const data = {
       msgheader: authKey,
       messages: [
@@ -245,7 +257,7 @@ async function handleNoticeDataEvent(noticeData, noticeID, gsmNumber, block) {
       partnercode: ""
     };
 
-    // Make the POST request to the API
+    // make the POST request to the API
     const response = await axios.post(apiUrl, data, {
       headers: { "Content-Type": "application/json" }
     });
@@ -255,14 +267,15 @@ async function handleNoticeDataEvent(noticeData, noticeID, gsmNumber, block) {
     // API returns a jobid (as a string of digits) and a code
     const jobID = Number(response.data.jobid);
     jobIdMap.set(Number(noticeID), jobID)
+    noticeIdMap.set(jobID, Number(noticeID));
 
     let status = 4;
     if (response.data.code === "00") { // queued
       status = 0;
     }
 
-    // Call the smart contract to update notice status with the API response
-    const usedGas = await updateNoticeStatus(noticeID, jobID, status);
+    // call the smart contract to update notice status with the API response
+    const usedGas = await updateNoticeStatus(noticeID, jobID, status, 0);
 
     console.log("Gas used in transaction: ", usedGas);
   } catch (error) {
@@ -272,16 +285,16 @@ async function handleNoticeDataEvent(noticeData, noticeID, gsmNumber, block) {
 
 app.post("/sms-status", async (req, res) => {
   try {
-    const { code, jobid, description, noticeID } = req.body;
+    const { code, jobid, description} = req.body;
+    const noticeID = noticeIdMap.get(Number(jobid));
 
     let status = 4;
     if (code === "01") { // sent
       status = 1;
     }
 
-    const usedGas = await updateNoticeStatus(noticeID, Number(jobid), status);
+    const usedGas = await updateNoticeStatus(noticeID, Number(jobid), status, 0);
 
-    console.log(`/sms-status callback: notice ${noticeID} ${description}`);
     console.log("Gas used in transaction: ", usedGas);
 
     res.sendStatus(204);
@@ -292,21 +305,23 @@ app.post("/sms-status", async (req, res) => {
 });
 
 app.get('/v/:token', async (req, res) => {
+  const clickMs = Date.now();
   const fullUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;  
-  const [idStr] = req.params.token.split("-")[0]; // noticeID is prefix
+  const [idStr] = req.params.token.split("-"); // noticeID is prefix
   const noticeID = Number(idStr);
-  console.log("get: ", noticeID)
 
   // verify the link matches what was sent
   const expected = urlMap.get(noticeID);
-  console.log("get: ", fullUrl);
-  console.log("get: ", expected);
   if (expected && expected === fullUrl) {
       console.log(`Link verified for notice ${noticeID}`);
       
       const jobID = jobIdMap.get(noticeID);
-      console.log("get: ", jobID);
-      await updateNoticeStatus(noticeID, jobID, 2); // 2 = Read
+
+      const usedGas = await updateNoticeStatus(noticeID, jobID, 2, clickMs); // 2 = Read
+
+      console.log("Gas used in transaction: ", usedGas);
+
+      res.status(204).send("Notice read confirmed");
   } else {
       console.warn(`Invalid or unknown link for notice ${noticeID}`);
       res.status(404).send("Invalid link");
@@ -314,7 +329,7 @@ app.get('/v/:token', async (req, res) => {
 });
 app.listen(8080);
 
-// When a notice is received, call the API via HTTP POST and then update the contract
+// when a notice is received, call the API via HTTP POST and then update the contract
 async function handleFunctionCallDelayEvent(noticeID, block) {
   const headerMs = blockSeenTime.get(block);
   const sendTime = noticeTimestamps[noticeID];
@@ -337,11 +352,11 @@ async function handleFunctionCallDelayEvent(noticeID, block) {
   }
 }
 
-// Function to call the contract’s updateNoticeStatus method.
-async function updateNoticeStatus(noticeID, jobID, status) {
+// function to call the contract’s updateNoticeStatus method
+async function updateNoticeStatus(noticeID, jobID, status, clickMs) {
   noticeTimestamps[noticeID] = Date.now();
 
-  const tx = contract.methods.updateNoticeStatus(noticeID, jobID, status);
+  const tx = contract.methods.updateNoticeStatus(noticeID, jobID, status, clickMs);
   const gas = await tx.estimateGas({ from: address });
   const gasPriceRaw = await web3.eth.getGasPrice();
   const gasPrice = Math.floor(Number(gasPriceRaw) * 1.2); // because of the "replacement transaction underpriced" error

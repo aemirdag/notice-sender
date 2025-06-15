@@ -50,6 +50,12 @@ const CONTRACT_ABI = [
         "internalType": "uint64",
         "name": "gsmNumber",
         "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "clientTsMs",
+        "type": "uint256"
       }
     ],
     "name": "NoticeStatusUpdate",
@@ -120,6 +126,11 @@ const CONTRACT_ABI = [
         "internalType": "enum Transceiver.NoticeStatusEnum",
         "name": "status",
         "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "clientTsMs",
+        "type": "uint256"
       }
     ],
     "name": "updateNoticeStatus",
@@ -129,32 +140,34 @@ const CONTRACT_ABI = [
   }
 ];
 
-const contractAddress = "0xfd91e0852ef70058467299805174b4d4cB959f04";
+const contractAddress = "0x37ec300a584722001D4983bE3A24e79672253F54";
 const contract = new web3.eth.Contract(CONTRACT_ABI, contractAddress);
 
 const privateKey = `${process.env.SEPOLIA_PRIVATE_KEY}`;
 const address = `${process.env.SEPOLIA_WALLET_ADDRESS}`;
 
-// Object to record when each notice is sent (keyed by noticeID)
+// object to record when each notice is sent
 const noticeTimestamps = {};
-// Array to store the response durations for each notice
+// array to store the response durations for each notice
 const responseDurations = [];
-// Array to store the function call delays for each notice
+// array to store the function call delays for each notice
 const eventDelays = [];
-// Array to store the function call delays for each notice
+// array to store the function call delays for each notice
 const functionCallDelays = [];
 // test notices
 const notices = [];
+// array to record delay on received read status
+const readDelays = [];
 // response time test size
-const numOfTests = 5;
+const numOfTests = 100;
 
 // subscribe once at start-up
 const newHeads$ = await web3.eth.subscribe('newBlockHeaders');
 
-const blockSeenTime = new Map();           // blockNumber → Date.now()
+const blockSeenTime = new Map();
 
 newHeads$.on('data', hdr => {
-    blockSeenTime.set(hdr.number, Date.now());   // ms when header arrived
+    blockSeenTime.set(hdr.number, Date.now());
 });
 
 // Register event listeners in a function
@@ -163,8 +176,9 @@ function registerEventListeners() {
   const sendNoticeDataFunctionCallReceivedEvent = contract.events.SendNoticeDataFunctionCallReceived();
 
   noticeStatusUpdateEvent.on('data', event => {
-    const { status, noticeID, gsmNumber } = event.returnValues;
+    const { status, noticeID, gsmNumber, clientTsMs } = event.returnValues;
 
+    const nowMs = Date.now();
     let statusStr = "Invalid";
     const statusNum = Number(status);
     if (statusNum === 0) {
@@ -175,9 +189,9 @@ function registerEventListeners() {
       statusStr = "Read";
     }
 
-    console.log(`Producer received NoticeStatusUpdate event: Status: ${statusStr}, NoticeID: ${noticeID}, GSM Number: ${gsmNumber}`);
+    console.log(`Producer received NoticeStatusUpdate event: NoticeID: ${noticeID}, Status: ${statusStr}, GSM Number: ${gsmNumber}`);
 
-    // Calculate the response time if the notice timestamp exists
+    // calculate the response time if the notice timestamp exists
     if (noticeTimestamps[noticeID]) {
       const blockNo  = event.blockNumber;
       const headerMs = blockSeenTime.get(blockNo);
@@ -215,6 +229,25 @@ function registerEventListeners() {
         console.log(`Average event delay time: ${avgEventDelay} ms`);
       }
     }
+
+    if (statusStr === "Read") {
+      const readDelay = nowMs - Number(clientTsMs);
+      readDelays.push({ noticeID, readDelay });
+
+      console.log(`Notice ID: ${noticeID}, Read Response Time: ${readDelay} ms`);
+
+      if (readDelays.length === numOfTests) {
+        console.log("Read Response Time Summary: [");
+        readDelays.forEach(({ noticeID, readDelay }) =>
+          console.log(`Notice ID: ${noticeID}, Read Response Time: ${readDelay} ms`)
+        );
+        console.log(`]`);
+
+        const avg = readDelays.reduce((acc, o) => acc + o.readDelay, 0) / readDelays.length;
+
+        console.log(`Average read response time: ${avg.toFixed(0)} ms`);
+      }
+    }
   });
 
   sendNoticeDataFunctionCallReceivedEvent.on('data', event => {
@@ -245,9 +278,9 @@ function registerEventListeners() {
   });
 }
 
-// Function to send a notice by calling the smart contract method
+// function to send a notice by calling the smart contract method
 async function sendNotice(noticeData, noticeID, gsmNumber) {
-  // Record the current time when sending the notice
+  // record the current time when sending the notice
   noticeTimestamps[noticeID] = Date.now();
 
   const tx = contract.methods.sendNoticeData(noticeData, noticeID, gsmNumber);
@@ -268,7 +301,7 @@ async function sendNotice(noticeData, noticeID, gsmNumber) {
   const signedTx = await web3.eth.accounts.signTransaction(txData, privateKey);
   const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
 
-  // Retrieve the block in which the transaction was included
+  // retrieve the block in which the transaction was included
   const block = await web3.eth.getBlock(receipt.blockNumber);
 
   //console.log('Producer sent transaction. Receipt:', receipt);
@@ -292,7 +325,7 @@ function generateRandomGsmNumber() {
   return Math.floor(Math.random() * 9000000000) + 1000000000;
 }
 
-// Test code: send three different notices with 5-second intervals
+// test code: send three different notices with 5-second intervals
 async function testResponseTime() {
   registerEventListeners();
 
@@ -317,14 +350,12 @@ async function testResponseTime() {
   }
 }
 
-/**
- * Test function that sends notices with increasing notice data lengths
- * and collects the gas consumption for each.
- */
+// test function that sends notices with increasing notice data lengths
+// and collects the gas consumption for each.
 async function testGasWithIncreasingData() {
   registerEventListeners();
 
-  // Array of different data lengths to test
+  // array of different data lengths to test
   const dataLengths = [];
   for (let i = 1; i <= numOfTests; i++) {
     dataLengths.push(i * 100);
@@ -334,7 +365,7 @@ async function testGasWithIncreasingData() {
   let noticeID = 1;
 
   for (const length of dataLengths) {
-    // Generate a notice string consisting of repeated 'A' characters.
+    // generate a notice string consisting of repeated 'A' characters
     const noticeData = 'A'.repeat(length);
 
     notices.push({
@@ -361,10 +392,8 @@ async function testGasWithIncreasingData() {
   console.log('Gas Metrics Summary:', gasMetrics);
 }
 
-/**
- * Test function that sends notices with increasing data sizes
- * and collects the block sizes.
- */
+//Test function that sends notices with increasing data sizes
+//and collects the block sizes
 async function testBlockSizeWithIncreasingData() {
   registerEventListeners();
   // Array of different data lengths to test
@@ -373,7 +402,7 @@ async function testBlockSizeWithIncreasingData() {
   let noticeID = 1;
   
   for (const length of dataLengths) {
-    // Generate a notice string consisting of repeated 'A' characters.
+    // Generate a notice string consisting of repeated 'A' characters
     const noticeData = 'A'.repeat(length);
     const receiptData = await sendNotice(noticeData, noticeID, 1234567890);
     blockSizeMetrics.push({ noticeID, dataLength: length, blockSize: receiptData.blockSize });
